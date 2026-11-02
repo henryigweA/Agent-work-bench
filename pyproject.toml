@@ -1,0 +1,23 @@
+[project]
+name = "agent-workbench"
+version = "0.1.0"
+description = "A small tool-using AI agent built with Python and Gemini."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = ["requests>=2.31.0", "python-dotenv>=1.0.0"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0.0"]
+
+[project.scripts]
+agent-workbench = "agent_workbench.cli:main"
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["agent_workbench*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
