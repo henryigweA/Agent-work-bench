@@ -1,0 +1,78 @@
+name: Unzip uploaded archive
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "**.zip"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: unzip-upload
+  cancel-in-progress: false
+
+jobs:
+  unzip:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Find and extract zip files
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+
+          # Only look at zips in the repo root (add more paths if needed)
+          zips=(./*.zip)
+          if [ ${#zips[@]} -eq 0 ]; then
+            echo "No zip files in repo root. Nothing to do."
+            exit 0
+          fi
+
+          for z in "${zips[@]}"; do
+            echo "Extracting $z"
+            tmp="$(mktemp -d)"
+            unzip -q "$z" -d "$tmp"
+
+            # Drop macOS junk
+            rm -rf "$tmp/__MACOSX"
+            find "$tmp" -name ".DS_Store" -delete
+
+            # If the zip has a single top-level folder, flatten it into the repo root
+            entries=("$tmp"/* "$tmp"/.[!.]*)
+            if [ ${#entries[@]} -eq 1 ] && [ -d "${entries[0]}" ]; then
+              src="${entries[0]}"
+            else
+              src="$tmp"
+            fi
+
+            # Never let an archive overwrite workflows or git metadata
+            rm -rf "$src/.git" "$src/.github/workflows"
+
+            # cp -a "dir/." copies hidden files (.gitignore, .env.example) too
+            cp -a "$src/." .
+
+            rm -rf "$tmp"
+            git rm -q -f "$z"
+          done
+
+      - name: Commit and push extracted files
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+
+          git commit -m "chore: extract uploaded zip archive"
+          git push
